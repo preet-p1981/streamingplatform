@@ -3,43 +3,44 @@ import api from './api';
 
 export const subscriptionService = {
     /**
-     * Toggle subscription to a channel
-     * @param {number} channelId - The ID of the channel
-     * @returns {Promise<void>}
+     * Subscribe to a channel
      */
-    toggleSubscription: async (channelId) => {
-        const response = await api.post(`/users/${channelId}/subscribe`);
+    subscribe: async (channelId) => {
+        const response = await api.post(`/subscriptions/channel/${channelId}`);
+        return response.data;
+    },
+
+    /**
+     * Unsubscribe from a channel
+     */
+    unsubscribe: async (channelId) => {
+        const response = await api.delete(`/subscriptions/channel/${channelId}`);
         return response.data;
     },
 
     /**
      * Check if user is subscribed to a channel
-     * @param {number} channelId - The ID of the channel
-     * @returns {Promise<boolean>} Subscription status
      */
     checkSubscription: async (channelId) => {
-        const response = await api.get(`/users/${channelId}/subscription-status`);
+        const response = await api.get(`/subscriptions/check/${channelId}`);
         return response.data;
     },
 
     /**
      * Get all channels user is subscribed to
-     * @returns {Promise<Array>} List of subscribed channels
      */
     getSubscriptions: async () => {
-        const response = await api.get('/users/subscriptions');
+        const response = await api.get('/subscriptions/my');
         return response.data;
     },
 
     /**
      * Get subscriber count for a channel
-     * @param {number} channelId - The ID of the channel
-     * @returns {Promise<number>} Subscriber count
      */
     getSubscriberCount: async (channelId) => {
-        const response = await api.get(`/users/${channelId}/subscribers/count`);
+        const response = await api.get(`/subscriptions/count/${channelId}`);
         return response.data;
-    },
+    }
 };
 
 export default subscriptionService;

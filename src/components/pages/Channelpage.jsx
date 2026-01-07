@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { userService } from '../../services/userService';
 import { videoService } from '../../services/videoService';
 import { useAuth } from '../../hooks/useAuth';
-import VideoList from '../../components/video/VideoList';
+import VideoList from '../video/VideoList';
 import toast from 'react-hot-toast';
 
 const Channel = () => {
@@ -17,6 +17,12 @@ const Channel = () => {
     const [videosLoading, setVideosLoading] = useState(true);
     const [isSubscribed, setIsSubscribed] = useState(false);
 
+    console.log('=== Channel Component Debug ===');
+    console.log('Channel ID:', id);
+    console.log('Current User:', currentUser);
+    console.log('Is Authenticated:', isAuthenticated);
+    console.log('Is Own Channel:', currentUser?.id === parseInt(id));
+
     useEffect(() => {
         if (id) {
             loadChannel();
@@ -24,27 +30,49 @@ const Channel = () => {
         }
     }, [id]);
 
+    useEffect(() => {
+        if (id && isAuthenticated && currentUser?.id) {
+            console.log('Checking subscription status...');
+            checkSubscriptionStatus();
+        }
+    }, [id, isAuthenticated, currentUser]);
+
     const loadChannel = async () => {
         setLoading(true);
         try {
+            console.log('Loading channel data for ID:', id);
             const data = await userService.getUserById(id);
+            console.log('Channel data loaded:', data);
             setChannel(data);
-
-            // Check subscription status if authenticated
-            if (isAuthenticated && currentUser?.id !== parseInt(id)) {
-                try {
-                    const subStatus = await videoService.checkSubscription(id);
-                    setIsSubscribed(subStatus);
-                } catch (error) {
-                    console.error('Failed to load subscription status:', error);
-                }
-            }
         } catch (error) {
+            console.error('Failed to load channel:', error);
             toast.error('Failed to load channel');
-            console.error(error);
             navigate('/');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const checkSubscriptionStatus = async () => {
+        if (currentUser?.id === parseInt(id)) {
+            console.log('This is own channel, not checking subscription');
+            setIsSubscribed(false);
+            return;
+        }
+
+        try {
+            console.log('Checking subscription for channel:', id);
+            const response = await fetch(`http://localhost:8080/api/users/${id}/subscription-status`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            const subStatus = await response.json();
+            console.log('Subscription status:', subStatus);
+            setIsSubscribed(subStatus);
+        } catch (error) {
+            console.error('Failed to check subscription:', error);
+            setIsSubscribed(false);
         }
     };
 
@@ -69,11 +97,23 @@ const Channel = () => {
         }
 
         try {
-            await videoService.toggleSubscription(id);
-            setIsSubscribed(!isSubscribed);
-            toast.success(isSubscribed ? 'Unsubscribed' : 'Subscribed!');
-            loadChannel(); // Reload to update subscriber count
+            console.log('Subscribing to channel:', id);
+            const response = await fetch(`http://localhost:8080/api/users/${id}/subscribe`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+
+            if (response.ok) {
+                setIsSubscribed(!isSubscribed);
+                toast.success(isSubscribed ? 'Unsubscribed' : 'Subscribed!');
+                loadChannel();
+            } else {
+                throw new Error('Subscribe failed');
+            }
         } catch (error) {
+            console.error('Subscription error:', error);
             toast.error('Failed to update subscription');
         }
     };
@@ -105,13 +145,13 @@ const Channel = () => {
     }
 
     const isOwnChannel = currentUser?.id === parseInt(id);
+    console.log('Rendering channel. Is own channel?', isOwnChannel);
+    console.log('Should show subscribe button?', !isOwnChannel && isAuthenticated);
 
     return (
         <div className="min-h-screen bg-gray-50 ml-64 mt-16">
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Channel Header */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden mb-8">
-                    {/* Banner */}
                     <div className="bg-gradient-to-r from-blue-500 to-purple-600 h-48 relative">
                         <div className="absolute -bottom-16 left-8">
                             <img
@@ -120,16 +160,11 @@ const Channel = () => {
                                     `https://ui-avatars.com/api/?name=${encodeURIComponent(channel.username)}&size=128&background=4F46E5&color=fff`
                                 }
                                 alt={channel.username}
-                                onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(channel.username)}&size=128&background=4F46E5&color=fff`;
-                                }}
                                 className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
                             />
                         </div>
                     </div>
 
-                    {/* Channel Info */}
                     <div className="pt-20 px-8 pb-8">
                         <div className="flex items-start justify-between">
                             <div className="flex-1">
@@ -150,7 +185,6 @@ const Channel = () => {
                                 )}
                             </div>
 
-                            {/* Subscribe Button - Only show if not own channel */}
                             {!isOwnChannel && isAuthenticated && (
                                 <button
                                     onClick={handleSubscribe}
@@ -164,7 +198,6 @@ const Channel = () => {
                                 </button>
                             )}
 
-                            {/* If not authenticated, show login prompt */}
                             {!isOwnChannel && !isAuthenticated && (
                                 <button
                                     onClick={() => navigate('/login')}
@@ -177,7 +210,6 @@ const Channel = () => {
                     </div>
                 </div>
 
-                {/* Videos Section */}
                 <div className="bg-white rounded-lg shadow-md p-6">
                     <div className="border-b border-gray-200 mb-6">
                         <button className="px-4 py-3 text-blue-600 border-b-2 border-blue-600 font-medium">
@@ -187,10 +219,8 @@ const Channel = () => {
 
                     {videosLoading ? (
                         <div className="flex items-center justify-center py-20">
-                            <div className="text-center">
-                                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                                <p className="text-gray-600 text-lg">Loading videos...</p>
-                            </div>
+                            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                            <p className="text-gray-600 text-lg">Loading videos...</p>
                         </div>
                     ) : videos.length === 0 ? (
                         <div className="text-center py-20">

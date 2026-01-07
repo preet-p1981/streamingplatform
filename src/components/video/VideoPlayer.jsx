@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { videoService } from '../../services/videoService';
 import { commentService } from '../../services/commentService';
+import { subscriptionService } from '../../services/subscriptionService';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { FaThumbsUp, FaThumbsDown, FaShare } from 'react-icons/fa';
@@ -42,7 +43,7 @@ const VideoPlayer = () => {
                 console.error('Failed to increment view:', error);
             }
 
-            if (isAuthenticated) {
+            if (isAuthenticated && user) {
                 try {
                     const status = await videoService.getLikeStatus(id);
                     setUserLikeStatus(status);
@@ -50,11 +51,14 @@ const VideoPlayer = () => {
                     console.error('Failed to load like status:', error);
                 }
 
-                try {
-                    const subStatus = await videoService.checkSubscription(data.userId);
-                    setIsSubscribed(subStatus);
-                } catch (error) {
-                    console.error('Failed to load subscription status:', error);
+                // Only check subscription if NOT viewing own channel
+                if (data.userId && user.id && data.userId !== user.id) {
+                    try {
+                        const subStatus = await subscriptionService.checkSubscription(data.userId);
+                        setIsSubscribed(subStatus.isSubscribed);
+                    } catch (error) {
+                        console.error('Failed to load subscription status:', error);
+                    }
                 }
             }
         } catch (error) {
@@ -119,13 +123,42 @@ const VideoPlayer = () => {
             toast.error('Please login to subscribe');
             return;
         }
+
+        // Triple check: Don't allow subscribing to own channel
+        if (!video?.userId || !user?.id) {
+            toast.error('Unable to subscribe at this time');
+            return;
+        }
+
+        if (user.id === video.userId) {
+            toast.error('You cannot subscribe to your own channel');
+            return;
+        }
+
         try {
-            await videoService.toggleSubscription(video.userId);
-            setIsSubscribed(!isSubscribed);
-            toast.success(isSubscribed ? 'Unsubscribed' : 'Subscribed!');
-            loadVideo();
+            if (isSubscribed) {
+                await subscriptionService.unsubscribe(video.userId);
+                setIsSubscribed(false);
+                // Update subscriber count locally
+                setVideo(prev => ({
+                    ...prev,
+                    subscriberCount: Math.max(0, (prev.subscriberCount || 0) - 1)
+                }));
+                toast.success('Unsubscribed');
+            } else {
+                await subscriptionService.subscribe(video.userId);
+                setIsSubscribed(true);
+                // Update subscriber count locally
+                setVideo(prev => ({
+                    ...prev,
+                    subscriberCount: (prev.subscriberCount || 0) + 1
+                }));
+                toast.success('Subscribed!');
+            }
         } catch (error) {
-            toast.error('Failed to update subscription');
+            const errorMessage = error.response?.data?.message || error.response?.data || 'Failed to update subscription';
+            toast.error(errorMessage);
+            console.error('Subscription error:', error);
         }
     };
 
@@ -173,6 +206,13 @@ const VideoPlayer = () => {
         if (views >= 1000) return `${(views / 1000).toFixed(1)}K`;
         return views || 0;
     };
+
+    // Check if this is user's own channel - with strict type checking
+    const isOwnChannel = Boolean(
+        user?.id &&
+        video?.userId &&
+        Number(user.id) === Number(video.userId)
+    );
 
     if (loading) {
         return (
@@ -264,7 +304,7 @@ const VideoPlayer = () => {
                         </div>
 
                         <div className="bg-white rounded-lg p-4 mb-4">
-                            <div className="flex items-start justify-between">
+                            <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center space-x-3">
                                     <Link to={`/channel/${video.userId}`}>
                                         <img
@@ -285,18 +325,49 @@ const VideoPlayer = () => {
                                     </div>
                                 </div>
 
-                                {isAuthenticated && user?.id !== video.userId && (
-                                    <button
-                                        onClick={handleSubscribe}
-                                        className={`px-6 py-2 font-semibold rounded-full transition-colors ${
-                                            isSubscribed
-                                                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                                : 'bg-red-600 text-white hover:bg-red-700'
-                                        }`}
-                                    >
-                                        {isSubscribed ? 'Subscribed' : 'Subscribe'}
-                                    </button>
-                                )}
+                                {/* Subscribe button logic with explicit checks */}
+                                {(() => {
+                                    // Debug log (remove after testing)
+                                    console.log('Subscribe Button Check:', {
+                                        isAuthenticated,
+                                        userId: user?.id,
+                                        videoUserId: video?.userId,
+                                        isOwnChannel,
+                                        userIdType: typeof user?.id,
+                                        videoUserIdType: typeof video?.userId
+                                    });
+
+                                    // Not authenticated - show login link
+                                    if (!isAuthenticated) {
+                                        return (
+                                            <Link
+                                                to="/login"
+                                                className="px-6 py-2 bg-red-600 text-white font-semibold rounded-full hover:bg-red-700 transition-colors"
+                                            >
+                                                Subscribe
+                                            </Link>
+                                        );
+                                    }
+
+                                    // Authenticated but own channel - show nothing
+                                    if (isOwnChannel) {
+                                        return null;
+                                    }
+
+                                    // Authenticated and other's channel - show subscribe button
+                                    return (
+                                        <button
+                                            onClick={handleSubscribe}
+                                            className={`px-6 py-2 font-semibold rounded-full transition-colors ${
+                                                isSubscribed
+                                                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                    : 'bg-red-600 text-white hover:bg-red-700'
+                                            }`}
+                                        >
+                                            {isSubscribed ? 'Subscribed' : 'Subscribe'}
+                                        </button>
+                                    );
+                                })()}
                             </div>
 
                             <div className="mt-4">
