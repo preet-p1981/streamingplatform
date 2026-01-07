@@ -1,0 +1,97 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Roboto', 'Arial', sans-serif;
+    background-color: #f9f9f9;
+    color: #0f0f0f;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.app-content {
+    display: flex;
+    flex: 1;
+    padding-top: 56px; /* Height of navbar */
+}
+
+.main-content {
+    flex: 1;
+    margin-left: 240px; /* Width of sidebar */
+    min-height: calc(100vh - 56px);
+    transition: margin-left 0.3s;
+}
+
+@media (max-width: 1024px) {
+    .main-content {
+        margin-left: 72px; /* Collapsed sidebar width */
+    }
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        margin-left: 0;
+    }
+}
+
+/* Common utility classes */
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    font-size: 18px;
+    color: #606060;
+}
+
+.error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    font-size: 18px;
+    color: #cc0000;
+}
+
+.no-videos {
+    text-align: center;
+    padding: 60px 20px;
+    font-size: 16px;
+    color: #606060;
+}
+
+/* Common button styles */
+button {
+    font-family: inherit;
+}
+
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
